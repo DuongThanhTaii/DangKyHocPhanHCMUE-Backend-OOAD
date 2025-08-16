@@ -61,8 +61,18 @@ const pool = new Pool({
 
 pool
   .connect()
-  .then(() => console.log("✅ Connected to database"))
+  .then(async (client) => {
+    try {
+      // Thiết lập schema mặc định cho session
+      await client.query('SET search_path TO public');
+      console.log("✅ Connected to database with public schema");
+    } finally {
+      // Trả client về pool
+      client.release();
+    }
+  })
   .catch((err) => console.error("❌ Error connecting to database:", err));
+
 
 // // Test database connection
 // pool.connect((err, client, release) => {
