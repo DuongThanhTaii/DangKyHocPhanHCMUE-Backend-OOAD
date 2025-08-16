@@ -248,7 +248,7 @@ app.get("/api/auth/me", authenticateToken, (req, res) => {
 // Get current system phase
 app.get("/api/system/phase", authenticateToken, async (req, res) => {
   try {
-    const query = "SELECT * FROM he_thong ORDER BY created_at DESC LIMIT 1";
+    const query = "SELECT * FROM he_thong ORDER BY created_at ASC LIMIT 1";
     const result = await pool.query(query);
     res.json(result.rows[0] || { trang_thai_phase: 5 });
   } catch (error) {
@@ -278,12 +278,28 @@ app.put(
         5: "Bình thường",
       };
 
+      // Cập nhật bản ghi hiện có
       const query = `
-            INSERT INTO he_thong (trang_thai_phase, ten_phase, ngay_bat_dau)
-            VALUES ($1, $2, CURRENT_TIMESTAMP)
-            RETURNING *
-        `;
+        UPDATE he_thong
+        SET trang_thai_phase=$1, ten_phase=$2, updated_at=NOW()
+        WHERE id=(SELECT id FROM he_thong ORDER BY created_at ASC LIMIT 1)
+        RETURNING *;
+      `;
       const result = await pool.query(query, [phase, phaseNames[phase]]);
+
+      // Nếu bảng trống, tạo bản ghi đầu tiên
+      if (result.rowCount === 0) {
+        const insertQuery = `
+          INSERT INTO he_thong (trang_thai_phase, ten_phase, ngay_bat_dau, created_at, updated_at)
+          VALUES ($1, $2, NOW(), NOW(), NOW())
+          RETURNING *;
+        `;
+        const insertResult = await pool.query(insertQuery, [phase, phaseNames[phase]]);
+        return res.json({
+          message: "System phase updated successfully",
+          phase: insertResult.rows[0],
+        });
+      }
 
       res.json({
         message: "System phase updated successfully",
